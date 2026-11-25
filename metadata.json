@@ -1,0 +1,6 @@
+{
+  "name": "Lumina F7",
+  "description": "Launcher minimalis 3D aman untuk Poco F7 dengan panel pengaturan atas transparan ala iPhone, wallpaper parallax halus, widget cuaca interaktif, dan transisi halaman serta sentuhan aplikasi 3D.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

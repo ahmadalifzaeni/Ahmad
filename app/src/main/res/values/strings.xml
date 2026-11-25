@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Lumina F7</string>
+    <string name="cd_search_apps">Cari aplikasi</string>
+    <string name="cd_open_control_center">Buka pusat kontrol atas</string>
+    <string name="cd_close_panel">Tutup panel</string>
+    <string name="cd_open_settings">Buka pengaturan launcher</string>
+    <string name="cd_refresh_weather">Perbarui data cuaca</string>
+    <string name="cd_toggle_flashlight">Nyalakan atau matikan senter</string>
+    <string name="cd_wallpaper_preview">Pratinjau wallpaper</string>
+    <string name="cd_app_drawer">Buka semua aplikasi</string>
+    <string name="cd_weather_icon">Ikon kondisi cuaca</string>
+    <string name="cd_default_launcher">Jadikan launcher bawaan</string>
+</resources>
