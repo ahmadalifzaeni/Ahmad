@@ -1,16 +1,17 @@
-name: Build & Release Lumina F7 APK
+name: Build Lumina F7 APK
 
 on:
   push:
+    branches: [ "**" ]
   release:
-    types: [ published, created, edited ]
+    types: [ published, created ]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build-and-release-apk:
+  build-apk:
     name: Build & Publish Lumina F7 APK
     runs-on: ubuntu-latest
 
@@ -24,15 +25,7 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Set up Android SDK & install Android 36.1
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK 36.1 Platform & Build Tools
-        run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platforms;android-36.1" "build-tools;36.0.0"
-
-      - name: Prepare debug keystore and env fallback
+      - name: Prepare debug keystore
         run: |
           if [ -f debug.keystore.base64 ]; then
             base64 -d debug.keystore.base64 > debug.keystore
@@ -47,8 +40,13 @@ jobs:
               -validity 10000 \
               -dname "CN=Android Debug,O=Android,C=US"
           fi
-          if [ ! -f .env.example ]; then
-            touch .env.example
+          [ -f .env.example ] || touch .env.example
+
+      - name: Accept Android SDK licenses
+        run: |
+          SDK_DIR="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          if [ -n "$SDK_DIR" ] && [ -x "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
           fi
 
       - name: Setup Gradle 9.3.1
@@ -57,7 +55,7 @@ jobs:
           gradle-version: "9.3.1"
 
       - name: Build Debug APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+        run: gradle :app:assembleDebug --no-daemon
 
       - name: Prepare Lumina-F7.apk
         run: |
@@ -65,7 +63,7 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/Lumina-F7.apk
           ls -lh release-apk/Lumina-F7.apk
 
-      - name: Upload APK to Workflow Artifacts
+      - name: Upload Lumina-F7-APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Lumina-F7-APK
@@ -73,7 +71,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish Lumina-F7.apk to GitHub Releases
+      - name: Attach Lumina-F7.apk to GitHub Releases
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -86,8 +85,9 @@ jobs:
               gh release upload "$TAG" release-apk/Lumina-F7.apk --clobber
             else
               gh release create "$TAG" release-apk/Lumina-F7.apk \
+                --target "${{ github.sha }}" \
                 --title "Lumina F7 (Latest APK)" \
-                --notes "File APK siap pasang untuk Poco F7. Ketuk Lumina-F7.apk di bagian Assets untuk mengunduh." \
+                --notes "File APK Lumina F7 siap pasang untuk Poco F7. Ketuk Lumina-F7.apk di bagian Assets untuk langsung mengunduh." \
                 --latest
             fi
           fi
