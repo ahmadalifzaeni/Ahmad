@@ -1,15 +1,17 @@
-name: Build Lumina F7 APK
+name: Build & Release Lumina F7 APK
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+  release:
+    types: [ published, created, edited ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build-apk:
-    name: Build Debug APK
+  build-and-release-apk:
+    name: Build & Publish Lumina F7 APK
     runs-on: ubuntu-latest
 
     steps:
@@ -22,7 +24,15 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Prepare debug keystore
+      - name: Set up Android SDK & install Android 36.1
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36.1 Platform & Build Tools
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platforms;android-36.1" "build-tools;36.0.0"
+
+      - name: Prepare debug keystore and env fallback
         run: |
           if [ -f debug.keystore.base64 ]; then
             base64 -d debug.keystore.base64 > debug.keystore
@@ -37,10 +47,9 @@ jobs:
               -validity 10000 \
               -dname "CN=Android Debug,O=Android,C=US"
           fi
-
-      - name: Accept Android SDK licenses
-        run: |
-          yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          if [ ! -f .env.example ]; then
+            touch .env.example
+          fi
 
       - name: Setup Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
@@ -48,12 +57,37 @@ jobs:
           gradle-version: "9.3.1"
 
       - name: Build Debug APK
-        run: gradle :app:assembleDebug --no-daemon
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Upload Lumina F7 APK Artifact
+      - name: Prepare Lumina-F7.apk
+        run: |
+          mkdir -p release-apk
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/Lumina-F7.apk
+          ls -lh release-apk/Lumina-F7.apk
+
+      - name: Upload APK to Workflow Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Lumina-F7-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: release-apk/Lumina-F7.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish Lumina-F7.apk to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+            gh release upload "$TAG" release-apk/Lumina-F7.apk --clobber
+          else
+            TAG="latest-apk"
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              gh release upload "$TAG" release-apk/Lumina-F7.apk --clobber
+            else
+              gh release create "$TAG" release-apk/Lumina-F7.apk \
+                --title "Lumina F7 (Latest APK)" \
+                --notes "File APK siap pasang untuk Poco F7. Ketuk Lumina-F7.apk di bagian Assets untuk mengunduh." \
+                --latest
+            fi
+          fi

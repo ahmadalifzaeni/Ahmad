@@ -13,6 +13,7 @@ import com.example.data.LauncherPreferences
 import com.example.data.PageTransition3D
 import com.example.data.PreferencesRepository
 import com.example.data.PresetCities
+import com.example.data.TopShadeMode
 import com.example.data.WallpaperPreset
 import com.example.data.WeatherRepository
 import com.example.data.WeatherUiState
@@ -32,14 +33,20 @@ data class LauncherUiState(
     val visibleApps: List<InstalledApp> = emptyList(),
     val hiddenApps: List<InstalledApp> = emptyList(),
     val dockApps: List<InstalledApp> = emptyList(),
-    val homePages: List<List<InstalledApp>> = listOf(emptyList()),
+    val aiApps: List<InstalledApp> = emptyList(),
+    val gameApps: List<InstalledApp> = emptyList(),
+    val essentialApps: List<InstalledApp> = emptyList(),
+    val mediaApps: List<InstalledApp> = emptyList(),
+    val utilityApps: List<InstalledApp> = emptyList(),
+    val featuredHomeApps: List<InstalledApp> = emptyList(),
     val preferences: LauncherPreferences = LauncherPreferences(),
     val weatherState: WeatherUiState = WeatherUiState.Loading,
     val deviceStatus: DeviceStatus = DeviceStatus(),
     val isLoadingApps: Boolean = true,
-    val isControlCenterOpen: Boolean = false,
+    val topShadeMode: TopShadeMode = TopShadeMode.CLOSED,
     val isAppDrawerOpen: Boolean = false,
     val isSettingsOpen: Boolean = false,
+    val activeFolderCategory: AppCategory? = null,
     val active3DApp: InstalledApp? = null,
     val drawerSearchQuery: String = "",
     val drawerSelectedCategory: AppCategory = AppCategory.ALL,
@@ -59,9 +66,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _deviceStatus = MutableStateFlow(DeviceStatus())
     private val _windowBrightness = MutableStateFlow(0.75f)
 
-    private val _isControlCenterOpen = MutableStateFlow(false)
+    private val _topShadeMode = MutableStateFlow(TopShadeMode.CLOSED)
     private val _isAppDrawerOpen = MutableStateFlow(false)
     private val _isSettingsOpen = MutableStateFlow(false)
+    private val _activeFolderCategory = MutableStateFlow<AppCategory?>(null)
     private val _active3DApp = MutableStateFlow<InstalledApp?>(null)
     private val _drawerSearchQuery = MutableStateFlow("")
     private val _drawerCategory = MutableStateFlow(AppCategory.ALL)
@@ -84,61 +92,59 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private val overlayFlow = combine(
-        _isControlCenterOpen,
+        _topShadeMode,
         _isAppDrawerOpen,
         _isSettingsOpen,
-        _active3DApp,
-        _snackbarMessage
-    ) { controlOpen, drawerOpen, settingsOpen, active3D, snackbar ->
-        OverlaySnapshot(controlOpen, drawerOpen, settingsOpen, active3D, snackbar)
+        _activeFolderCategory,
+        _active3DApp
+    ) { topShade, drawerOpen, settingsOpen, folderCat, active3D ->
+        OverlaySnapshot(topShade, drawerOpen, settingsOpen, folderCat, active3D)
     }
 
     val uiState: StateFlow<LauncherUiState> = combine(
         baseDataFlow,
         overlayFlow,
         _drawerSearchQuery,
-        _drawerCategory
-    ) { base, overlays, query, category ->
+        _drawerCategory,
+        _snackbarMessage
+    ) { base, overlays, query, category, snackbar ->
         val visible = base.allApps.filterNot { base.prefs.hiddenPackages.contains(it.packageName) }
         val hidden = base.allApps.filter { base.prefs.hiddenPackages.contains(it.packageName) }
 
         val dock = resolveDockApps(visible, base.prefs.dockPackages)
         val dockPkgSet = dock.map { it.packageName }.toSet()
-        val gridPool = visible.filterNot { dockPkgSet.contains(it.packageName) }
 
-        val cols = base.prefs.gridColumns
-        val firstPageCapacity = cols * 2
-        val extraPageCapacity = cols * 5
+        val aiList = visible.filter { it.category == AppCategory.AI }
+        val gameList = visible.filter { it.category == AppCategory.GAMES }
+        val essentialList = visible.filter { it.category == AppCategory.ESSENTIALS }
+        val mediaList = visible.filter { it.category == AppCategory.MEDIA }
+        val utilityList = visible.filter { it.category == AppCategory.UTILITIES }
 
-        val pages = mutableListOf<List<InstalledApp>>()
-        pages.add(gridPool.take(firstPageCapacity))
-        val remaining = gridPool.drop(firstPageCapacity)
-        if (remaining.isNotEmpty()) {
-            remaining.chunked(extraPageCapacity).forEach { chunk ->
-                pages.add(chunk)
-            }
-        } else {
-            // Always provide at least 2 smooth pages so 3D page transition can be experienced immediately
-            pages.add(visible.take(cols * 3))
-        }
+        val featuredHome = appRepository.pickCuratedHomeApps(visible, dockPkgSet)
 
         LauncherUiState(
             allApps = base.allApps,
             visibleApps = visible,
             hiddenApps = hidden,
             dockApps = dock,
-            homePages = pages,
+            aiApps = aiList,
+            gameApps = gameList,
+            essentialApps = essentialList,
+            mediaApps = mediaList,
+            utilityApps = utilityList,
+            featuredHomeApps = featuredHome,
             preferences = base.prefs,
             weatherState = base.weather,
             deviceStatus = base.status,
             isLoadingApps = base.isLoading,
-            isControlCenterOpen = overlays.controlOpen,
+            topShadeMode = overlays.topShadeMode,
             isAppDrawerOpen = overlays.drawerOpen,
             isSettingsOpen = overlays.settingsOpen,
+            activeFolderCategory = overlays.folderCategory,
             active3DApp = overlays.active3D,
             drawerSearchQuery = query,
             drawerSelectedCategory = category,
-            snackbarMessage = overlays.snackbar
+            snackbarMessage = snackbar
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LauncherUiState())
 
@@ -210,12 +216,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun launchApp(app: InstalledApp) {
         _active3DApp.value = null
+        _activeFolderCategory.value = null
         _isAppDrawerOpen.value = false
         val launched = appRepository.launchApp(app)
         if (!launched) {
             showToast("Tidak dapat membuka ${app.label}")
         }
     }
+
+    fun openCalendarApp() = appRepository.openCalendarApp()
+    fun openClockApp() = appRepository.openClockApp()
+    fun openSystemGestureSettings() = appRepository.openSystemGestureSettings()
 
     fun openAppInfo(app: InstalledApp) {
         _active3DApp.value = null
@@ -306,6 +317,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { preferencesRepository.setAmbientGlow(enabled) }
     }
 
+    fun setImmersiveGestureNav(enabled: Boolean) {
+        viewModelScope.launch { preferencesRepository.setImmersiveGestureNav(enabled) }
+    }
+
     fun setGridColumns(columns: Int) {
         viewModelScope.launch { preferencesRepository.setGridColumns(columns) }
     }
@@ -316,18 +331,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun setControlCenterOpen(open: Boolean) {
-        if (open) {
+    fun setTopShadeMode(mode: TopShadeMode) {
+        if (mode != TopShadeMode.CLOSED) {
             refreshDeviceStatus()
             _isAppDrawerOpen.value = false
+            _activeFolderCategory.value = null
             _active3DApp.value = null
         }
-        _isControlCenterOpen.value = open
+        _topShadeMode.value = mode
     }
 
     fun setAppDrawerOpen(open: Boolean) {
         if (open) {
-            _isControlCenterOpen.value = false
+            _topShadeMode.value = TopShadeMode.CLOSED
+            _activeFolderCategory.value = null
             _active3DApp.value = null
         } else {
             _drawerSearchQuery.value = ""
@@ -338,15 +355,32 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun setSettingsOpen(open: Boolean) {
         if (open) {
             refreshDeviceStatus()
-            _isControlCenterOpen.value = false
+            _topShadeMode.value = TopShadeMode.CLOSED
             _isAppDrawerOpen.value = false
+            _activeFolderCategory.value = null
             _active3DApp.value = null
         }
         _isSettingsOpen.value = open
     }
 
+    fun setActiveFolderCategory(category: AppCategory?) {
+        if (category != null) {
+            _topShadeMode.value = TopShadeMode.CLOSED
+            _active3DApp.value = null
+        }
+        _activeFolderCategory.value = category
+    }
+
     fun setActive3DApp(app: InstalledApp?) {
         _active3DApp.value = app
+    }
+
+    fun closeAllOverlays() {
+        _topShadeMode.value = TopShadeMode.CLOSED
+        _isAppDrawerOpen.value = false
+        _isSettingsOpen.value = false
+        _activeFolderCategory.value = null
+        _active3DApp.value = null
     }
 
     fun updateDrawerSearchQuery(query: String) {
@@ -374,6 +408,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun openInternetPanel() = deviceStatusRepository.openInternetPanel()
+    fun openAirplaneModeSettings() = deviceStatusRepository.openAirplaneModeSettings()
+    fun openNotificationSettings() = deviceStatusRepository.openNotificationSettings()
     fun openBluetoothSettings() = deviceStatusRepository.openBluetoothSettings()
     fun openDisplaySettings() = deviceStatusRepository.openDisplaySettings()
     fun openSystemSettings() = deviceStatusRepository.openSystemSettings()
@@ -409,10 +445,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     )
 
     private data class OverlaySnapshot(
-        val controlOpen: Boolean,
+        val topShadeMode: TopShadeMode,
         val drawerOpen: Boolean,
         val settingsOpen: Boolean,
-        val active3D: InstalledApp?,
-        val snackbar: String?
+        val folderCategory: AppCategory?,
+        val active3D: InstalledApp?
     )
 }

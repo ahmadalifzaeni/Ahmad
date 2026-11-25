@@ -78,6 +78,8 @@ fun LauncherSettingsSheet(
     onPickCustomWallpaper: () -> Unit,
     onParallaxIntensityChange: (Float) -> Unit,
     onAmbientGlowChange: (Boolean) -> Unit,
+    onImmersiveGestureChange: (Boolean) -> Unit,
+    onOpenGestureSystemSettings: () -> Unit,
     onSelectIconStyle: (IconStyle3D) -> Unit,
     onToggleCustom3DGlyphs: (Boolean) -> Unit,
     onSelectPageTransition: (PageTransition3D) -> Unit,
@@ -184,6 +186,38 @@ fun LauncherSettingsSheet(
                                 text = if (isDefaultLauncher) "Ubah Pengaturan Launcher Utama" else "Jadikan Launcher Utama",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // 1B. Gesture Navigation Mode (Replace 3-button bar with iPhone Gesture Pill)
+                item {
+                    SettingsGlassSection(title = "Navigasi Gestur (Ala iPhone 18 Pro Max)") {
+                        SettingsSwitchRow(
+                            title = "Sembunyikan 3 Tombol Navigasi",
+                            subtitle = "Gunakan bilah gestur ramping di bagian bawah: geser atas untuk aplikasi, geser kiri/kanan untuk pindah halaman.",
+                            checked = preferences.immersiveGestureNav,
+                            onCheckedChange = onImmersiveGestureChange,
+                            tag = "settings_immersive_gesture_switch"
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.White.copy(alpha = 0.10f))
+                                .border(0.8.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(16.dp))
+                                .clickable(onClick = onOpenGestureSystemSettings)
+                                .padding(vertical = 11.dp, horizontal = 12.dp)
+                                .testTag("settings_open_system_gesture")
+                        ) {
+                            Text(
+                                text = "Buka Pengaturan Gestur Sistem Poco F7",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = LuminaCyan
                             )
                         }
                     }

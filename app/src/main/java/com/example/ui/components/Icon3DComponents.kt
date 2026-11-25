@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Calculate
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Call
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.ShoppingBag
+import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -66,6 +68,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.data.AppCategory
 import com.example.data.IconStyle3D
 import com.example.data.InstalledApp
 
@@ -79,6 +82,12 @@ data class Custom3DGlyphSpec(
 fun resolveCustom3DGlyph(app: InstalledApp): Custom3DGlyphSpec? {
     val text = "${app.packageName.lowercase()} ${app.label.lowercase()}"
     return when {
+        app.category == AppCategory.AI -> Custom3DGlyphSpec(
+            Icons.Rounded.AutoAwesome, Color(0xFF67E8F9), Color(0xFF4F46E5), Color(0xFF5CE1FF)
+        )
+        app.category == AppCategory.GAMES -> Custom3DGlyphSpec(
+            Icons.Rounded.SportsEsports, Color(0xFFA78BFA), Color(0xFF5B21B6), Color(0xFFA78BFA)
+        )
         listOf("dialer", "phone", "telepon").any { text.contains(it) } -> Custom3DGlyphSpec(
             Icons.Rounded.Call, Color(0xFF42F2A8), Color(0xFF0E9F6E), Color(0xFF34D399)
         )

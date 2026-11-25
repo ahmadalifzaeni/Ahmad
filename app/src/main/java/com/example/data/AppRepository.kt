@@ -12,6 +12,8 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
+import android.provider.AlarmClock
+import android.provider.CalendarContract
 import android.provider.Settings
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -48,7 +50,8 @@ class AppRepository(private val context: Context) {
                 val iconBitmap = runCatching {
                     drawableToImageBitmap(info.loadIcon(pm), targetSizePx = 144)
                 }.getOrNull()
-                val appFlags = info.activityInfo.applicationInfo?.flags ?: 0
+                val appInfo = info.activityInfo.applicationInfo
+                val appFlags = appInfo?.flags ?: 0
                 val isSystem = (appFlags and ApplicationInfo.FLAG_SYSTEM) != 0
 
                 InstalledApp(
@@ -56,7 +59,7 @@ class AppRepository(private val context: Context) {
                     activityName = act,
                     label = label,
                     iconBitmap = iconBitmap,
-                    category = inferCategory(pkg, label),
+                    category = inferCategory(pkg, label, appInfo),
                     isSystemApp = isSystem
                 )
             }
@@ -84,6 +87,21 @@ class AppRepository(private val context: Context) {
                     false
                 }
             }.getOrDefault(false)
+        }
+    }
+
+    fun openCalendarApp() {
+        runCatching {
+            val uri = CalendarContract.CONTENT_URI.buildUpon().appendPath("time").build()
+            val intent = Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        }
+    }
+
+    fun openClockApp() {
+        runCatching {
+            val intent = Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
         }
     }
 
@@ -123,6 +141,22 @@ class AppRepository(private val context: Context) {
         }
     }
 
+    fun openSystemGestureSettings() {
+        runCatching {
+            // Try MIUI/HyperOS full-screen gesture settings or fallback to Display/System settings
+            val intent = Intent(Settings.ACTION_DISPLAY_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        }.onFailure {
+            runCatching {
+                context.startActivity(
+                    Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+        }
+    }
+
     fun isDefaultLauncher(): Boolean {
         return runCatching {
             val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
@@ -143,7 +177,7 @@ class AppRepository(private val context: Context) {
         if (apps.isEmpty()) return emptyList()
         val priorityKeywords = listOf(
             listOf("dialer", "phone", "telepon", "contacts", "call"),
-            listOf("messaging", "mms", "whatsapp", "telegram", "sms", "pesan", "chat"),
+            listOf("whatsapp", "telegram", "messaging", "mms", "sms", "pesan"),
             listOf("chrome", "browser", "firefox", "opera", "edge", "mi.globalbrowser"),
             listOf("camera", "kamera", "photos", "gallery", "galeri")
         )
@@ -166,17 +200,100 @@ class AppRepository(private val context: Context) {
         return picked.take(4)
     }
 
-    private fun inferCategory(pkg: String, label: String): AppCategory {
-        val text = "${pkg.lowercase()} ${label.lowercase()}"
-        return when {
-            listOf("phone", "dialer", "contact", "telepon", "sms", "mms", "message", "pesan", "whatsapp", "telegram", "mail", "gmail", "chat", "discord", "instagram", "tiktok", "twitter", "facebook").any { text.contains(it) } ->
-                AppCategory.COMMUNICATION
-            listOf("camera", "kamera", "photo", "gallery", "galeri", "music", "spotify", "youtube", "video", "netflix", "audio", "podcast", "play.games").any { text.contains(it) } ->
-                AppCategory.MEDIA
-            listOf("calendar", "kalender", "note", "catatan", "docs", "drive", "sheets", "chrome", "browser", "keep", "tasks", "office", "pdf", "maps", "peta").any { text.contains(it) } ->
-                AppCategory.PRODUCTIVITY
-            else -> AppCategory.UTILITIES
+    fun pickCuratedHomeApps(
+        visibleApps: List<InstalledApp>,
+        dockPackages: Set<String>
+    ): List<InstalledApp> {
+        val pool = visibleApps.filterNot { dockPackages.contains(it.packageName) }
+        val curated = mutableListOf<InstalledApp>()
+
+        // Up to 2 top AI apps, up to 1 top Game app, and remaining top Essential apps -> max 4 clean icons on Home Page 0!
+        pool.filter { it.category == AppCategory.AI }.take(2).forEach { curated.add(it) }
+        pool.filter { it.category == AppCategory.GAMES }.take(1).forEach {
+            if (curated.size < 4) curated.add(it)
         }
+        pool.filter { it.category == AppCategory.ESSENTIALS }.forEach { app ->
+            if (curated.size < 4 && curated.none { it.packageName == app.packageName }) {
+                curated.add(app)
+            }
+        }
+        pool.forEach { app ->
+            if (curated.size < 4 && curated.none { it.packageName == app.packageName }) {
+                curated.add(app)
+            }
+        }
+        return curated.take(4)
+    }
+
+    private fun inferCategory(
+        pkg: String,
+        label: String,
+        appInfo: ApplicationInfo?
+    ): AppCategory {
+        val pkgLower = pkg.lowercase()
+        val labelLower = label.lowercase()
+        val text = "$pkgLower $labelLower"
+
+        // 1. AI & Assistants
+        val aiKeywords = listOf(
+            "openai", "chatgpt", "gemini", "bard", "claude", "anthropic",
+            "perplexity", "deepseek", "copilot", "grok", "poe", "character.ai",
+            "meta.ai", "midjourney", "cici", "qwen", "assistant", "aistudio",
+            "bing", "lensa", "remini", "chatbot"
+        )
+        if (aiKeywords.any { text.contains(it) } ||
+            labelLower == "ai" ||
+            labelLower.endsWith(" ai") ||
+            labelLower.startsWith("ai ")
+        ) {
+            return AppCategory.AI
+        }
+
+        // 2. Games (Android official ApplicationInfo.CATEGORY_GAME + popular game packages)
+        val isAndroidGame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            appInfo?.category == ApplicationInfo.CATEGORY_GAME
+        } else {
+            @Suppress("DEPRECATION")
+            ((appInfo?.flags ?: 0) and ApplicationInfo.FLAG_IS_GAME) != 0
+        }
+        val gameKeywords = listOf(
+            "mobile.legends", "mlbb", "pubg", "freefire", "dts.freefire",
+            "genshin", "mihoyo", "hoyoverse", "honkai", "roblox", "minecraft",
+            "miniclip", "eightballpool", "8ball", "supercell", "clash",
+            "brawlstars", "codm", "activision", "garena", "efootball", "fifa",
+            "fc.mobile", "valorant", "wildrift", "subway", "kiloo", "ea.game",
+            "gameloft", "zynga", "play.games", "steam", "game", "arena", "chess",
+            "stumble", "amongus", "billiard", "pool"
+        )
+        if (isAndroidGame || gameKeywords.any { text.contains(it) }) {
+            return AppCategory.GAMES
+        }
+
+        // 3. Essentials (Important daily apps)
+        val essentialKeywords = listOf(
+            "whatsapp", "telegram", "phone", "dialer", "telepon", "contacts", "kontak",
+            "mms", "sms", "message", "pesan", "chrome", "browser", "camera", "kamera",
+            "gallery", "galeri", "photos", "settings", "pengaturan", "setelan",
+            "gmail", "mail", "maps", "peta", "calendar", "kalender", "clock", "jam",
+            "dana", "gopay", "gojek", "grab", "ovo", "bca", "mandiri", "bri", "bni",
+            "livin", "brimo", "seabank", "shopee", "tokopedia", "notes", "catatan",
+            "keep", "drive", "files", "filemanager", "calculator", "kalkulator"
+        )
+        if (essentialKeywords.any { text.contains(it) }) {
+            return AppCategory.ESSENTIALS
+        }
+
+        // 4. Media & Social
+        val mediaKeywords = listOf(
+            "youtube", "spotify", "music", "musik", "tiktok", "instagram", "netflix",
+            "disney", "vidio", "video", "twitch", "facebook", "twitter", "threads",
+            "discord", "podcast", "audio", "recorder"
+        )
+        if (mediaKeywords.any { text.contains(it) }) {
+            return AppCategory.MEDIA
+        }
+
+        return AppCategory.UTILITIES
     }
 
     private fun drawableToImageBitmap(drawable: Drawable, targetSizePx: Int): ImageBitmap {

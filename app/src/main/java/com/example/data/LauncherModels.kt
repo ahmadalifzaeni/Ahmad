@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import com.example.R
 
 enum class IconStyle3D(val label: String, val subtitle: String) {
-    GLASS_3D("3D Glass", "Efek kaca bening dengan kilau tepi"),
+    GLASS_3D("3D Glass", "Efek kaca bening ala Liquid Glass"),
     CLAY_3D("3D Clay", "Tampilan lembut membulat yang taktil"),
     OBSIDIAN_3D("Obsidian 3D", "Minimalis gelap elegan untuk AMOLED")
 }
@@ -44,7 +44,7 @@ enum class WallpaperPreset(
     TITANIUM_PEARL(
         id = "titanium_pearl",
         title = "Titanium Pearl",
-        subtitle = "Minimalis terang elegan bergaya flagship",
+        subtitle = "Minimalis terang elegan bergaya iPhone Pro",
         drawableRes = R.drawable.img_wall_titanium_sand_1795598627618,
         isLightBackdrop = true,
         accentColor = Color(0xFFD6B98C)
@@ -58,9 +58,10 @@ enum class WallpaperPreset(
 
 enum class AppCategory(val label: String) {
     ALL("Semua"),
-    COMMUNICATION("Komunikasi"),
-    MEDIA("Media & Kamera"),
-    PRODUCTIVITY("Produktivitas"),
+    AI("AI"),
+    GAMES("Game"),
+    ESSENTIALS("Penting"),
+    MEDIA("Media"),
     UTILITIES("Utilitas")
 }
 
@@ -81,6 +82,7 @@ data class LauncherPreferences(
     val pageTransition: PageTransition3D = PageTransition3D.CUBE_DEPTH,
     val parallaxIntensity: Float = 0.78f,
     val ambientGlowEnabled: Boolean = true,
+    val immersiveGestureNav: Boolean = true,
     val gridColumns: Int = 4,
     val dockPackages: List<String> = emptyList(),
     val hiddenPackages: Set<String> = emptySet(),
@@ -160,13 +162,22 @@ object PresetCities {
     fun byId(id: String): CityLocation = all.firstOrNull { it.id == id } ?: all.first()
 }
 
+enum class TopShadeMode {
+    CLOSED,
+    CONTROL_CENTER,
+    NOTIFICATIONS
+}
+
 data class DeviceStatus(
     val batteryPercent: Int = 85,
     val isCharging: Boolean = false,
     val isWifiConnected: Boolean = true,
     val isCellularConnected: Boolean = false,
+    val isAirplaneModeOn: Boolean = false,
     val mediaVolumeFraction: Float = 0.6f,
     val screenBrightnessFraction: Float = 0.72f,
     val isTorchOn: Boolean = false,
-    val isDefaultLauncher: Boolean = false
+    val isDefaultLauncher: Boolean = false,
+    val availableRamGb: Float = 6.4f,
+    val totalRamGb: Float = 12.0f
 )

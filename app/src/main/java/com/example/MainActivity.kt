@@ -14,6 +14,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.LauncherScreen
 import com.example.ui.theme.LuminaTheme
@@ -22,6 +25,7 @@ import com.example.viewmodel.LauncherViewModel
 class MainActivity : ComponentActivity() {
 
     private val viewModel: LauncherViewModel by viewModels()
+    private var immersiveGestureEnabled: Boolean = true
 
     private val packageChangeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -40,11 +44,18 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val brightness by viewModel.windowBrightness.collectAsStateWithLifecycle()
+            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            val hideSystemNav = uiState.preferences.immersiveGestureNav
 
             LaunchedEffect(brightness) {
                 val attrs = window.attributes
                 attrs.screenBrightness = brightness
                 window.attributes = attrs
+            }
+
+            LaunchedEffect(hideSystemNav) {
+                immersiveGestureEnabled = hideSystemNav
+                applyNavigationBarMode(hideSystemNav)
             }
 
             LuminaTheme {
@@ -53,8 +64,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            applyNavigationBarMode(immersiveGestureEnabled)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
+        applyNavigationBarMode(immersiveGestureEnabled)
         viewModel.refreshDeviceStatus()
         viewModel.refreshInstalledApps()
     }
@@ -62,6 +81,17 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         runCatching { unregisterReceiver(packageChangeReceiver) }
         super.onDestroy()
+    }
+
+    private fun applyNavigationBarMode(hideThreeButtonNav: Boolean) {
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (hideThreeButtonNav) {
+            controller.hide(WindowInsetsCompat.Type.navigationBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.navigationBars())
+        }
     }
 
     private fun registerPackageChanges() {

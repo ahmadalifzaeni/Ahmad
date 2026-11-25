@@ -27,6 +27,7 @@ class PreferencesRepository(private val context: Context) {
         val PAGE_TRANSITION = stringPreferencesKey("page_transition")
         val PARALLAX_INTENSITY = floatPreferencesKey("parallax_intensity")
         val AMBIENT_GLOW = booleanPreferencesKey("ambient_glow")
+        val IMMERSIVE_GESTURE_NAV = booleanPreferencesKey("immersive_gesture_nav")
         val GRID_COLUMNS = intPreferencesKey("grid_columns")
         val DOCK_PACKAGES = stringPreferencesKey("dock_packages_csv")
         val HIDDEN_PACKAGES = stringSetPreferencesKey("hidden_packages")
@@ -50,6 +51,7 @@ class PreferencesRepository(private val context: Context) {
             } ?: PageTransition3D.CUBE_DEPTH,
             parallaxIntensity = prefs[Keys.PARALLAX_INTENSITY] ?: 0.78f,
             ambientGlowEnabled = prefs[Keys.AMBIENT_GLOW] ?: true,
+            immersiveGestureNav = prefs[Keys.IMMERSIVE_GESTURE_NAV] ?: true,
             gridColumns = (prefs[Keys.GRID_COLUMNS] ?: 4).coerceIn(4, 5),
             dockPackages = dockList,
             hiddenPackages = prefs[Keys.HIDDEN_PACKAGES] ?: emptySet(),
@@ -93,6 +95,10 @@ class PreferencesRepository(private val context: Context) {
 
     suspend fun setAmbientGlow(enabled: Boolean) {
         context.launcherDataStore.edit { it[Keys.AMBIENT_GLOW] = enabled }
+    }
+
+    suspend fun setImmersiveGestureNav(enabled: Boolean) {
+        context.launcherDataStore.edit { it[Keys.IMMERSIVE_GESTURE_NAV] = enabled }
     }
 
     suspend fun setGridColumns(columns: Int) {

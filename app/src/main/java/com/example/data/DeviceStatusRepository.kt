@@ -62,15 +62,39 @@ class DeviceStatusRepository(private val context: Context) {
             (curVol.toFloat() / maxVol.toFloat()).coerceIn(0f, 1f)
         }.getOrDefault(0.6f)
 
+        var availRamGb = 6.4f
+        var totalRamGb = 12.0f
+        runCatching {
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+            if (am != null) {
+                val memInfo = android.app.ActivityManager.MemoryInfo()
+                am.getMemoryInfo(memInfo)
+                val gb = 1024f * 1024f * 1024f
+                availRamGb = (memInfo.availMem / gb).coerceAtLeast(0.1f)
+                totalRamGb = (memInfo.totalMem / gb).coerceAtLeast(1.0f)
+            }
+        }
+
+        val isAirplaneOn = runCatching {
+            Settings.Global.getInt(
+                context.contentResolver,
+                Settings.Global.AIRPLANE_MODE_ON,
+                0
+            ) != 0
+        }.getOrDefault(false)
+
         return DeviceStatus(
             batteryPercent = batteryPct,
             isCharging = isCharging,
             isWifiConnected = wifi,
             isCellularConnected = cellular,
+            isAirplaneModeOn = isAirplaneOn,
             mediaVolumeFraction = volumeFraction,
             screenBrightnessFraction = currentBrightness,
             isTorchOn = cachedTorchOn,
-            isDefaultLauncher = isDefaultLauncher
+            isDefaultLauncher = isDefaultLauncher,
+            availableRamGb = availRamGb,
+            totalRamGb = totalRamGb
         )
     }
 
@@ -106,6 +130,29 @@ class DeviceStatusRepository(private val context: Context) {
                 Intent(Settings.ACTION_WIFI_SETTINGS)
             }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
+        }
+    }
+
+    fun openAirplaneModeSettings() {
+        runCatching {
+            context.startActivity(
+                Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }.onFailure {
+            openSystemSettings()
+        }
+    }
+
+    fun openNotificationSettings() {
+        runCatching {
+            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Intent(Settings.ACTION_ALL_APPS_NOTIFICATION_SETTINGS)
+            } else {
+                Intent(Settings.ACTION_SETTINGS)
+            }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        }.onFailure {
+            openSystemSettings()
         }
     }
 
