@@ -227,6 +227,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun openCalendarApp() = appRepository.openCalendarApp()
     fun openClockApp() = appRepository.openClockApp()
     fun openSystemGestureSettings() = appRepository.openSystemGestureSettings()
+    fun launchMiBrowser() {
+        val launched = appRepository.launchMiBrowser()
+        if (!launched) {
+            showToast("Browser tidak ditemukan")
+        }
+    }
 
     fun openAppInfo(app: InstalledApp) {
         _active3DApp.value = null

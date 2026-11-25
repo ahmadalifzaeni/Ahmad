@@ -195,8 +195,8 @@ fun LauncherSettingsSheet(
                 item {
                     SettingsGlassSection(title = "Navigasi Gestur (Ala iPhone 18 Pro Max)") {
                         SettingsSwitchRow(
-                            title = "Sembunyikan 3 Tombol Navigasi",
-                            subtitle = "Gunakan bilah gestur ramping di bagian bawah: geser atas untuk aplikasi, geser kiri/kanan untuk pindah halaman.",
+                            title = "Mode Gestur Penuh di Launcher",
+                            subtitle = "Sembunyikan 3 tombol navigasi. Geser tepi kiri/kanan untuk kembali, geser atas untuk aplikasi, geser kiri beranda untuk Mi Browser.",
                             checked = preferences.immersiveGestureNav,
                             onCheckedChange = onImmersiveGestureChange,
                             tag = "settings_immersive_gesture_switch"
@@ -365,8 +365,8 @@ fun LauncherSettingsSheet(
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         SettingsSwitchRow(
-                            title = "Ikon Kustom 3D Minimalis",
-                            subtitle = "Gunakan paket ikon vektor 3D rapi untuk aplikasi populer",
+                            title = "Ikon Bawaan Gaya iPhone",
+                            subtitle = "Browser, Telepon, Pesan, Kamera & sistem bergaya iPhone; AI, Game & aplikasi lain tetap pakai ikon aslinya.",
                             checked = preferences.useCustom3DGlyphs,
                             onCheckedChange = onToggleCustom3DGlyphs,
                             tag = "settings_custom_glyphs_switch"

@@ -80,33 +80,46 @@ data class Custom3DGlyphSpec(
 )
 
 fun resolveCustom3DGlyph(app: InstalledApp): Custom3DGlyphSpec? {
-    val text = "${app.packageName.lowercase()} ${app.label.lowercase()}"
+    val pkg = app.packageName.lowercase()
+    val label = app.label.lowercase()
+    val text = "$pkg $label"
+
+    // Keep real original app icons for third-party messengers, AI, games, banking, media, etc.
+    val keepOriginalKeywords = listOf(
+        "whatsapp", "telegram", "discord", "instagram", "tiktok", "facebook",
+        "spotify", "youtube", "netflix", "shopee", "tokopedia", "bri", "bca",
+        "mandiri", "dana", "gopay", "ovo", "openai", "chatgpt", "gemini",
+        "claude", "deepseek", "perplexity", "copilot", "grok", "assistant",
+        "vending", "play", "maps", "gmail"
+    )
+    if (app.category == AppCategory.AI ||
+        app.category == AppCategory.GAMES ||
+        keepOriginalKeywords.any { text.contains(it) }
+    ) {
+        return null
+    }
+
+    // Apply clean iPhone-style 3D custom icons ONLY for core utilities (Browser, Phone, SMS, Camera, Gallery, Settings, Clock, Calendar, Calculator, Notes, Files, Weather)
     return when {
-        app.category == AppCategory.AI -> Custom3DGlyphSpec(
-            Icons.Rounded.AutoAwesome, Color(0xFF67E8F9), Color(0xFF4F46E5), Color(0xFF5CE1FF)
+        listOf("browser", "chrome", "firefox", "opera", "edge", "safari").any { text.contains(it) } -> Custom3DGlyphSpec(
+            Icons.Rounded.Language, Color(0xFF56CCF2), Color(0xFF2F80ED), Color(0xFF56CCF2)
         )
-        app.category == AppCategory.GAMES -> Custom3DGlyphSpec(
-            Icons.Rounded.SportsEsports, Color(0xFFA78BFA), Color(0xFF5B21B6), Color(0xFFA78BFA)
-        )
-        listOf("dialer", "phone", "telepon").any { text.contains(it) } -> Custom3DGlyphSpec(
+        listOf("dialer", "incallui", "contacts", "phone", "telepon").any { text.contains(it) } -> Custom3DGlyphSpec(
             Icons.Rounded.Call, Color(0xFF42F2A8), Color(0xFF0E9F6E), Color(0xFF34D399)
         )
-        listOf("mms", "sms", "messaging", "pesan", "whatsapp", "telegram", "chat").any { text.contains(it) } -> Custom3DGlyphSpec(
+        listOf("mms", "messaging", "sms", "pesan").any { text.contains(it) } -> Custom3DGlyphSpec(
             Icons.Rounded.ChatBubble, Color(0xFF5AE8FF), Color(0xFF1D7AFC), Color(0xFF38BDF8)
         )
         listOf("camera", "kamera").any { text.contains(it) } -> Custom3DGlyphSpec(
-            Icons.Rounded.CameraAlt, Color(0xFF6B7792), Color(0xFF222A3B), Color(0xFF94A3B8)
+            Icons.Rounded.CameraAlt, Color(0xFF7B879E), Color(0xFF242C3D), Color(0xFF94A3B8)
         )
-        listOf("gallery", "galeri", "photos", "foto").any { text.contains(it) } -> Custom3DGlyphSpec(
+        listOf("gallery", "galeri", "miui.gallery", "photos").any { text.contains(it) } -> Custom3DGlyphSpec(
             Icons.Rounded.PhotoLibrary, Color(0xFFFF9671), Color(0xFFFF4D8D), Color(0xFFFB7185)
         )
-        listOf("chrome", "browser", "firefox", "opera", "edge").any { text.contains(it) } -> Custom3DGlyphSpec(
-            Icons.Rounded.Language, Color(0xFF64B5FF), Color(0xFF3F51F5), Color(0xFF60A5FA)
-        )
-        listOf("settings", "pengaturan", "setelan").any { text.contains(it) } -> Custom3DGlyphSpec(
+        listOf("com.android.settings", "miui.settings", "pengaturan", "setelan").any { text.contains(it) } -> Custom3DGlyphSpec(
             Icons.Rounded.Settings, Color(0xFF8C9AB8), Color(0xFF354057), Color(0xFF94A3B8)
         )
-        listOf("clock", "deskclock", "jam", "alarm").any { text.contains(it) } -> Custom3DGlyphSpec(
+        listOf("deskclock", "clock", "jam", "alarm").any { text.contains(it) } -> Custom3DGlyphSpec(
             Icons.Rounded.Schedule, Color(0xFF475569), Color(0xFF0F172A), Color(0xFF60A5FA)
         )
         listOf("calendar", "kalender").any { text.contains(it) } -> Custom3DGlyphSpec(
@@ -115,32 +128,11 @@ fun resolveCustom3DGlyph(app: InstalledApp): Custom3DGlyphSpec? {
         listOf("calculator", "kalkulator").any { text.contains(it) } -> Custom3DGlyphSpec(
             Icons.Rounded.Calculate, Color(0xFFFFB75E), Color(0xFFED7125), Color(0xFFFBBF24)
         )
-        listOf("maps", "peta", "navigation").any { text.contains(it) } -> Custom3DGlyphSpec(
-            Icons.Rounded.Map, Color(0xFF5EEAD4), Color(0xFF0284C7), Color(0xFF38BDF8)
-        )
-        listOf("music", "musik", "spotify", "audio").any { text.contains(it) } -> Custom3DGlyphSpec(
-            Icons.Rounded.MusicNote, Color(0xFFFF6B9D), Color(0xFF8B5CF6), Color(0xFFC084FC)
-        )
-        listOf("youtube", "video", "netflix", "player").any { text.contains(it) } -> Custom3DGlyphSpec(
-            Icons.Rounded.PlayCircle, Color(0xFFFF6666), Color(0xFFC81E3A), Color(0xFFF87171)
-        )
-        listOf("mail", "gmail", "email").any { text.contains(it) } -> Custom3DGlyphSpec(
-            Icons.Rounded.Email, Color(0xFF60A5FA), Color(0xFF2563EB), Color(0xFF60A5FA)
-        )
-        listOf("files", "filemanager", "berkas", "documentsui").any { text.contains(it) } -> Custom3DGlyphSpec(
-            Icons.Rounded.Folder, Color(0xFF67E8F9), Color(0xFF0284C7), Color(0xFF38BDF8)
-        )
-        listOf("vending", "play store", "market", "store").any { text.contains(it) } -> Custom3DGlyphSpec(
-            Icons.Rounded.ShoppingBag, Color(0xFF5EEAD4), Color(0xFF2563EB), Color(0xFF38BDF8)
-        )
-        listOf("notes", "catatan", "keep", "memo").any { text.contains(it) } -> Custom3DGlyphSpec(
+        listOf("miui.notes", "notes", "catatan", "memo").any { text.contains(it) } -> Custom3DGlyphSpec(
             Icons.Rounded.Description, Color(0xFFFDE047), Color(0xFFEA8A0C), Color(0xFFFACC15)
         )
-        listOf("contacts", "kontak").any { text.contains(it) } -> Custom3DGlyphSpec(
-            Icons.Rounded.AccountCircle, Color(0xFFA78BFA), Color(0xFF5B21B6), Color(0xFFA78BFA)
-        )
-        listOf("recorder", "rekam").any { text.contains(it) } -> Custom3DGlyphSpec(
-            Icons.Rounded.Mic, Color(0xFFFB7185), Color(0xFFBE123C), Color(0xFFFB7185)
+        listOf("filemanager", "documentsui", "files", "berkas").any { text.contains(it) } -> Custom3DGlyphSpec(
+            Icons.Rounded.Folder, Color(0xFF67E8F9), Color(0xFF0284C7), Color(0xFF38BDF8)
         )
         listOf("weather", "cuaca").any { text.contains(it) } -> Custom3DGlyphSpec(
             Icons.Rounded.WbSunny, Color(0xFF7DD3FC), Color(0xFF2563EB), Color(0xFF38BDF8)

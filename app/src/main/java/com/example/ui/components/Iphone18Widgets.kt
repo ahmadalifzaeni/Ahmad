@@ -93,161 +93,37 @@ import java.util.Locale
 
 @Composable
 fun DynamicIslandTopBar(
-    weatherSummary: String?,
-    deviceStatus: DeviceStatus,
-    onOpenControlCenter: () -> Unit,
-    onOpenNotifications: () -> Unit,
-    onOpenSettings: () -> Unit,
+    onOpenUnifiedTopShade: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
-
+    // Clean single unified top touch/swipe zone that does NOT stack a second Dynamic Island
+    // under Poco F7's native camera island. Tap or swipe down to open the unified Control & Notification shade.
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 18.dp, vertical = 4.dp)
+            .height(26.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onOpenUnifiedTopShade
+            )
             .pointerInput(Unit) {
-                detectVerticalDragGestures { change, dragAmount ->
-                    if (dragAmount > 14f) {
-                        isExpanded = false
-                        if (change.position.x < size.width * 0.45f) {
-                            onOpenNotifications()
-                        } else {
-                            onOpenControlCenter()
-                        }
+                detectVerticalDragGestures { _, dragAmount ->
+                    if (dragAmount > 12f) {
+                        onOpenUnifiedTopShade()
                     }
                 }
             }
+            .testTag("unified_top_shade_handle")
     ) {
-        val islandShape = RoundedCornerShape(if (isExpanded) 28.dp else 24.dp)
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Box(
             modifier = Modifier
-                .widthIn(min = 148.dp, max = 336.dp)
-                .clip(islandShape)
-                .background(Color(0xE8060911))
-                .border(
-                    width = 0.9.dp,
-                    brush = Brush.linearGradient(
-                        listOf(
-                            Color.White.copy(alpha = 0.36f),
-                            LuminaCyan.copy(alpha = if (isExpanded) 0.45f else 0.14f),
-                            Color.White.copy(alpha = 0.10f)
-                        )
-                    ),
-                    shape = islandShape
-                )
-                .clickable { isExpanded = !isExpanded }
-                .padding(
-                    horizontal = if (isExpanded) 16.dp else 14.dp,
-                    vertical = if (isExpanded) 12.dp else 7.dp
-                )
-                .testTag("dynamic_island_pill")
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(
-                            when {
-                                deviceStatus.isAirplaneModeOn -> LuminaAmber
-                                deviceStatus.isCharging -> LuminaMint
-                                else -> LuminaCyan
-                            }
-                        )
-                )
-                Text(
-                    text = weatherSummary ?: "Lumina F7",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White.copy(alpha = 0.95f),
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1
-                )
-                if (isExpanded) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "${deviceStatus.batteryPercent}%",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (deviceStatus.isCharging) LuminaMint else Color.White.copy(alpha = 0.78f)
-                    )
-                }
-            }
-
-            AnimatedVisibility(visible = isExpanded) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp)
-                ) {
-                    DynamicIslandQuickAction(
-                        label = "Kontrol",
-                        accent = LuminaCyan,
-                        tag = "island_open_control",
-                        onClick = {
-                            isExpanded = false
-                            onOpenControlCenter()
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    DynamicIslandQuickAction(
-                        label = "Notifikasi",
-                        accent = LuminaIndigo,
-                        tag = "island_open_notifications",
-                        onClick = {
-                            isExpanded = false
-                            onOpenNotifications()
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    DynamicIslandQuickAction(
-                        label = "Setelan",
-                        accent = Color.White,
-                        tag = "island_open_settings",
-                        onClick = {
-                            isExpanded = false
-                            onOpenSettings()
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DynamicIslandQuickAction(
-    label: String,
-    accent: Color,
-    tag: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val shape = RoundedCornerShape(16.dp)
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier
-            .clip(shape)
-            .background(Color.White.copy(alpha = 0.12f))
-            .border(0.7.dp, accent.copy(alpha = 0.42f), shape)
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp, horizontal = 6.dp)
-            .testTag(tag)
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = Color.White,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1
+                .width(40.dp)
+                .height(3.5.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.28f))
         )
     }
 }

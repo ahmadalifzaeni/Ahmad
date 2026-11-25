@@ -141,19 +141,49 @@ class AppRepository(private val context: Context) {
         }
     }
 
-    fun openSystemGestureSettings() {
-        runCatching {
-            // Try MIUI/HyperOS full-screen gesture settings or fallback to Display/System settings
-            val intent = Intent(Settings.ACTION_DISPLAY_SETTINGS).apply {
+    fun launchMiBrowser(): Boolean {
+        val miBrowserPackages = listOf(
+            "com.mi.globalbrowser",
+            "com.android.browser",
+            "com.mi.globalbrowser.mini",
+            "com.android.chrome"
+        )
+        for (pkg in miBrowserPackages) {
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(pkg)
+            if (launchIntent != null) {
+                val ok = runCatching {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                    context.startActivity(launchIntent)
+                    true
+                }.getOrDefault(false)
+                if (ok) return true
+            }
+        }
+        return runCatching {
+            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(intent)
-        }.onFailure {
-            runCatching {
-                context.startActivity(
-                    Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-            }
+            context.startActivity(webIntent)
+            true
+        }.getOrDefault(false)
+    }
+
+    fun openSystemGestureSettings() {
+        val candidates = listOf(
+            Intent().setComponent(
+                ComponentName("com.android.settings", "com.android.settings.SubSettings")
+            ).putExtra(":settings:show_fragment", "com.android.settings.gestures.SystemNavigationGestureSettings"),
+            Intent(Settings.ACTION_HOME_SETTINGS),
+            Intent(Settings.ACTION_DISPLAY_SETTINGS),
+            Intent(Settings.ACTION_SETTINGS)
+        )
+        for (intent in candidates) {
+            val ok = runCatching {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                true
+            }.getOrDefault(false)
+            if (ok) return
         }
     }
 

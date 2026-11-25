@@ -12,6 +12,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +62,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
@@ -83,6 +86,7 @@ import com.example.ui.components.ProMaxBentoWidgetRow
 import com.example.ui.components.ProMaxHeroClockHeader
 import com.example.ui.components.SmartCuratedFoldersRow
 import com.example.ui.components.TopControlCenterOverlay
+import com.example.ui.theme.LuminaCobalt
 import com.example.ui.theme.LuminaCyan
 import com.example.viewmodel.LauncherViewModel
 import kotlinx.coroutines.delay
@@ -91,6 +95,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.absoluteValue
+
+private const val PAGE_MI_BROWSER = 0
+private const val PAGE_HOME = 1
+private const val PAGE_APP_LIBRARY = 2
+private const val TOTAL_PAGES = 3
 
 @Composable
 fun LauncherScreen(
@@ -145,14 +154,23 @@ fun LauncherScreen(
         }
     }
 
-    val pageCount = 2
-    val pagerState = rememberPagerState(initialPage = 0, pageCount = { pageCount })
+    // 3-page 3D Pager: Page 0 (Left) = Instant Mi Browser, Page 1 (Center) = Home, Page 2 (Right) = App Library
+    val pagerState = rememberPagerState(initialPage = PAGE_HOME, pageCount = { TOTAL_PAGES })
+
+    // When user swipes to the Left Page (Page 0), directly launch Mi Browser and cleanly reset back to Home!
+    LaunchedEffect(pagerState.settledPage) {
+        if (pagerState.settledPage == PAGE_MI_BROWSER) {
+            viewModel.launchMiBrowser()
+            delay(220L)
+            pagerState.scrollToPage(PAGE_HOME)
+        }
+    }
 
     val pagerScrollFraction = remember(
         pagerState.currentPage,
         pagerState.currentPageOffsetFraction
     ) {
-        ((pagerState.currentPage + pagerState.currentPageOffsetFraction) / (pageCount - 1).toFloat())
+        ((pagerState.currentPage + pagerState.currentPageOffsetFraction) / (TOTAL_PAGES - 1).toFloat())
             .coerceIn(0f, 1f)
     }
 
@@ -174,12 +192,6 @@ fun LauncherScreen(
     )
 
     val density = LocalDensity.current.density
-
-    val weatherIslandSummary = remember(state.weatherState) {
-        (state.weatherState as? WeatherUiState.Success)?.data?.let {
-            "${it.temperatureC}°  •  ${it.conditionLabel}"
-        }
-    }
 
     val activeFolderApps = remember(
         state.activeFolderCategory,
@@ -204,13 +216,10 @@ fun LauncherScreen(
             .fillMaxSize()
             .pointerInput(isOverlayOpen) {
                 if (!isOverlayOpen) {
-                    detectVerticalDragGestures { change, dragAmount ->
-                        if (dragAmount > 34f) {
-                            if (change.position.x < size.width * 0.45f) {
-                                viewModel.setTopShadeMode(TopShadeMode.NOTIFICATIONS)
-                            } else {
-                                viewModel.setTopShadeMode(TopShadeMode.CONTROL_CENTER)
-                            }
+                    detectVerticalDragGestures { _, dragAmount ->
+                        if (dragAmount > 32f) {
+                            // Unified single top shade (Control Center + Notifications together)
+                            viewModel.setTopShadeMode(TopShadeMode.CONTROL_CENTER)
                         } else if (dragAmount < -34f) {
                             viewModel.setAppDrawerOpen(true)
                         }
@@ -218,8 +227,7 @@ fun LauncherScreen(
                 }
             }
     ) {
-        // ENTIRE Home Layer (Wallpaper + Top Dynamic Island + Clock + Widgets + Icons + Dock)
-        // blurs smoothly as ONE unit when Control Center, Notifications, or any overlay opens!
+        // ENTIRE Home Layer blurs smoothly as ONE unit when the unified top shade or any overlay opens
         val fullBlurModifier = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && homeBlurRadius > 0.5.dp) {
             Modifier.blur(homeBlurRadius)
         } else {
@@ -260,16 +268,14 @@ fun LauncherScreen(
                     .fillMaxSize()
                     .then(bottomPaddingModifier)
             ) {
-                // Single unified centered Dynamic Island (no duplicate status bar!)
+                // Single minimal top handle — preserves Poco F7's native Dynamic Island as the ONLY Dynamic Island!
                 DynamicIslandTopBar(
-                    weatherSummary = weatherIslandSummary,
-                    deviceStatus = state.deviceStatus,
-                    onOpenControlCenter = { viewModel.setTopShadeMode(TopShadeMode.CONTROL_CENTER) },
-                    onOpenNotifications = { viewModel.setTopShadeMode(TopShadeMode.NOTIFICATIONS) },
-                    onOpenSettings = { viewModel.setSettingsOpen(true) }
+                    onOpenUnifiedTopShade = {
+                        viewModel.setTopShadeMode(TopShadeMode.CONTROL_CENTER)
+                    }
                 )
 
-                // Interactive 3D Pager
+                // Interactive 3D Pager: Left (Mi Browser) | Center (Home) | Right (App Library)
                 HorizontalPager(
                     state = pagerState,
                     beyondViewportPageCount = 1,
@@ -323,58 +329,71 @@ fun LauncherScreen(
                             }
                             .padding(horizontal = 18.dp)
                     ) {
-                        if (pageIndex == 0) {
-                            ProMaxMinimalHomePage(
-                                timeLabel = timeLabel,
-                                dateLabel = dateLabel,
-                                dayOfWeekLabel = dayOfWeekLabel,
-                                dayOfMonthLabel = dayOfMonthLabel,
-                                monthYearLabel = monthYearLabel,
-                                deviceStatus = state.deviceStatus,
-                                weatherState = state.weatherState,
-                                selectedCityId = state.preferences.selectedCityId,
-                                useGpsWeather = state.preferences.useGpsWeather,
-                                aiApps = state.aiApps,
-                                gameApps = state.gameApps,
-                                essentialApps = state.essentialApps,
-                                featuredHomeApps = state.featuredHomeApps,
-                                iconStyle = state.preferences.iconStyle,
-                                useCustom3DGlyphs = state.preferences.useCustom3DGlyphs,
-                                tiltX = tilt.first,
-                                tiltY = tilt.second,
-                                onClockClick = { viewModel.openClockApp() },
-                                onBatteryCardClick = { viewModel.setTopShadeMode(TopShadeMode.CONTROL_CENTER) },
-                                onCalendarCardClick = { viewModel.openCalendarApp() },
-                                onRefreshWeather = { viewModel.refreshWeather() },
-                                onSelectCity = { viewModel.selectWeatherCity(it, useGps = false) },
-                                onRequestGps = {
-                                    locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-                                },
-                                onOpenFolder = { viewModel.setActiveFolderCategory(it) },
-                                onLaunchApp = { viewModel.launchApp(it) },
-                                onLongPressApp = { viewModel.setActive3DApp(it) }
-                            )
-                        } else {
-                            SmartAppLibraryPage(
-                                aiApps = state.aiApps,
-                                gameApps = state.gameApps,
-                                essentialApps = state.essentialApps,
-                                mediaApps = state.mediaApps,
-                                utilityApps = state.utilityApps,
-                                iconStyle = state.preferences.iconStyle,
-                                useCustom3DGlyphs = state.preferences.useCustom3DGlyphs,
-                                tiltX = tilt.first,
-                                tiltY = tilt.second,
-                                onOpenSearchDrawer = { viewModel.setAppDrawerOpen(true) },
-                                onOpenFolder = { viewModel.setActiveFolderCategory(it) },
-                                onLaunchApp = { viewModel.launchApp(it) },
-                                onLongPressApp = { viewModel.setActive3DApp(it) }
-                            )
+                        when (pageIndex) {
+                            PAGE_MI_BROWSER -> {
+                                MiBrowserPortalPage(
+                                    onOpenNow = {
+                                        viewModel.launchMiBrowser()
+                                        coroutineScope.launch { pagerState.animateScrollToPage(PAGE_HOME) }
+                                    }
+                                )
+                            }
+
+                            PAGE_HOME -> {
+                                ProMaxMinimalHomePage(
+                                    timeLabel = timeLabel,
+                                    dateLabel = dateLabel,
+                                    dayOfWeekLabel = dayOfWeekLabel,
+                                    dayOfMonthLabel = dayOfMonthLabel,
+                                    monthYearLabel = monthYearLabel,
+                                    deviceStatus = state.deviceStatus,
+                                    weatherState = state.weatherState,
+                                    selectedCityId = state.preferences.selectedCityId,
+                                    useGpsWeather = state.preferences.useGpsWeather,
+                                    aiApps = state.aiApps,
+                                    gameApps = state.gameApps,
+                                    essentialApps = state.essentialApps,
+                                    featuredHomeApps = state.featuredHomeApps,
+                                    iconStyle = state.preferences.iconStyle,
+                                    useCustom3DGlyphs = state.preferences.useCustom3DGlyphs,
+                                    tiltX = tilt.first,
+                                    tiltY = tilt.second,
+                                    onClockClick = { viewModel.openClockApp() },
+                                    onBatteryCardClick = { viewModel.setTopShadeMode(TopShadeMode.CONTROL_CENTER) },
+                                    onCalendarCardClick = { viewModel.openCalendarApp() },
+                                    onRefreshWeather = { viewModel.refreshWeather() },
+                                    onSelectCity = { viewModel.selectWeatherCity(it, useGps = false) },
+                                    onRequestGps = {
+                                        locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                                    },
+                                    onOpenFolder = { viewModel.setActiveFolderCategory(it) },
+                                    onLaunchApp = { viewModel.launchApp(it) },
+                                    onLongPressApp = { viewModel.setActive3DApp(it) }
+                                )
+                            }
+
+                            else -> {
+                                SmartAppLibraryPage(
+                                    aiApps = state.aiApps,
+                                    gameApps = state.gameApps,
+                                    essentialApps = state.essentialApps,
+                                    mediaApps = state.mediaApps,
+                                    utilityApps = state.utilityApps,
+                                    iconStyle = state.preferences.iconStyle,
+                                    useCustom3DGlyphs = state.preferences.useCustom3DGlyphs,
+                                    tiltX = tilt.first,
+                                    tiltY = tilt.second,
+                                    onOpenSearchDrawer = { viewModel.setAppDrawerOpen(true) },
+                                    onOpenFolder = { viewModel.setActiveFolderCategory(it) },
+                                    onLaunchApp = { viewModel.launchApp(it) },
+                                    onLongPressApp = { viewModel.setActive3DApp(it) }
+                                )
+                            }
                         }
                     }
                 }
 
-                // Minimalist iPhone Spotlight Search Pill + Page Dots
+                // Minimalist iPhone Spotlight Search Pill + Page Dots (Left Browser icon | Home | App Library)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -404,8 +423,20 @@ fun LauncherScreen(
                         )
                     }
 
-                    repeat(pageCount) { idx ->
-                        val isSelected = pagerState.currentPage == idx
+                    // Left Mi Browser Quick Indicator Icon
+                    Icon(
+                        imageVector = Icons.Rounded.Public,
+                        contentDescription = "Mi Browser",
+                        tint = if (pagerState.currentPage == PAGE_MI_BROWSER) LuminaCyan else Color.White.copy(alpha = 0.56f),
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .clickable { viewModel.launchMiBrowser() }
+                            .testTag("pager_mi_browser_indicator")
+                    )
+
+                    listOf(PAGE_HOME, PAGE_APP_LIBRARY).forEach { pageIdx ->
+                        val isSelected = pagerState.currentPage == pageIdx
                         val dotWidth by animateDpAsState(
                             targetValue = if (isSelected) 20.dp else 7.dp,
                             animationSpec = spring(),
@@ -438,13 +469,13 @@ fun LauncherScreen(
                         .widthIn(max = 520.dp)
                 )
 
-                // Interactive Gesture Navigation Pill (Replaces 3-Button Bar)
+                // Interactive Gesture Navigation Pill (Replaces 3-Button Bar inside Launcher)
                 GestureNavigationPill(
                     onTapHome = {
                         if (isOverlayOpen) {
                             viewModel.closeAllOverlays()
-                        } else if (pagerState.currentPage != 0) {
-                            coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                        } else if (pagerState.currentPage != PAGE_HOME) {
+                            coroutineScope.launch { pagerState.animateScrollToPage(PAGE_HOME) }
                         }
                     },
                     onSwipeUp = {
@@ -455,7 +486,7 @@ fun LauncherScreen(
                         }
                     },
                     onSwipeLeft = {
-                        val next = (pagerState.currentPage + 1).coerceAtMost(pageCount - 1)
+                        val next = (pagerState.currentPage + 1).coerceAtMost(TOTAL_PAGES - 1)
                         coroutineScope.launch { pagerState.animateScrollToPage(next) }
                     },
                     onSwipeRight = {
@@ -469,16 +500,15 @@ fun LauncherScreen(
             }
         }
 
-        // 3. Full-Screen Blurred Control Center & Notification Center Shade
+        // 3. Unified Full-Screen Blurred Control Center + Notification Shade (Swipe Up to Close, NO X button)
         TopControlCenterOverlay(
-            mode = state.topShadeMode,
+            visible = state.topShadeMode != TopShadeMode.CLOSED,
             timeLabel = timeLabel,
             dateLabel = dateLabel,
             deviceStatus = state.deviceStatus,
             weatherState = state.weatherState,
             wallpaperPreset = state.preferences.wallpaperPreset,
             iconStyle = state.preferences.iconStyle,
-            onSwitchMode = { viewModel.setTopShadeMode(it) },
             onDismiss = { viewModel.setTopShadeMode(TopShadeMode.CLOSED) },
             onBrightnessChange = { viewModel.setWindowBrightness(it) },
             onVolumeChange = { viewModel.setMediaVolume(it) },
@@ -565,6 +595,32 @@ fun LauncherScreen(
             onUninstall = { viewModel.uninstallApp(it) }
         )
 
+        // Built-in Edge-Back Gesture Zones (Left & Right edges) when any launcher overlay is open
+        if (isOverlayOpen && state.preferences.immersiveGestureNav) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .width(22.dp)
+                    .height(360.dp)
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures { _, dragAmount ->
+                            if (dragAmount > 20f) viewModel.closeAllOverlays()
+                        }
+                    }
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(22.dp)
+                    .height(360.dp)
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures { _, dragAmount ->
+                            if (dragAmount < -20f) viewModel.closeAllOverlays()
+                        }
+                    }
+            )
+        }
+
         // Minimalist Floating Glass Snackbar
         SnackbarHost(
             hostState = snackbarHostState,
@@ -577,6 +633,65 @@ fun LauncherScreen(
                 containerColor = Color(0xE6141C2E),
                 contentColor = Color.White,
                 shape = RoundedCornerShape(18.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun MiBrowserPortalPage(
+    onOpenNow: () -> Unit
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("mi_browser_portal_page")
+    ) {
+        val cardShape = RoundedCornerShape(32.dp)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 320.dp)
+                .clip(cardShape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0x3DFFFFFF), Color(0x18FFFFFF))
+                    )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.36f), cardShape)
+                .clickable(onClick = onOpenNow)
+                .padding(horizontal = 24.dp, vertical = 30.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(
+                        Brush.linearGradient(listOf(LuminaCyan, LuminaCobalt))
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Public,
+                    contentDescription = "Mi Browser",
+                    tint = Color.White,
+                    modifier = Modifier.size(38.dp)
+                )
+            }
+            Text(
+                text = "Mi Browser",
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "Membuka Mi Browser secara langsung...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.78f),
+                textAlign = TextAlign.Center
             )
         }
     }
